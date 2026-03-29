@@ -1,0 +1,10 @@
+{
+  "language": "he",
+  "theme": "dark",
+  "speech_timer_default": 7,
+  "enable_sound": true,
+  "font_size": "medium",
+  "include_rebuttal": true,
+  "include_poi": true,
+  "always_on_top": false
+}

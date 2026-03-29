@@ -1,0 +1,11 @@
+[application]
+name = "Debate_judging_interface"
+default_platform = "desktop"
+
+[bundle]
+identifier = "com.debate.judging-interface"
+publisher = "Debate"
+icon = ["assets/debate_logo.ico"]
+
+[web.app]
+title = "Debate_judging_interface"

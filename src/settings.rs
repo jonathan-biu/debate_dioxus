@@ -1,0 +1,58 @@
+use serde::{Deserialize, Serialize};
+use std::fs;
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Settings {
+    pub language: String,
+    pub theme: String,
+    pub speech_timer_default: u32,
+    pub enable_sound: bool,
+    pub font_size: String,
+    pub include_rebuttal: bool,
+    pub include_poi: bool,
+    pub always_on_top: bool,
+}
+
+#[allow(dead_code)]
+pub const DEFAULT_SETTINGS: Settings = Settings {
+    language: String::new(),       // filled below
+    theme: String::new(),
+    speech_timer_default: 7,
+    enable_sound: true,
+    font_size: String::new(),
+    include_rebuttal: true,
+    include_poi: true,
+    always_on_top: false,
+};
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            language: "en".into(),
+            theme: "light".into(),
+            speech_timer_default: 7,
+            enable_sound: true,
+            font_size: "medium".into(),
+            include_rebuttal: true,
+            include_poi: true,
+            always_on_top: false,
+        }
+    }
+}
+
+fn settings_path() -> std::path::PathBuf {
+    "settings.json".into()
+}
+
+pub fn load() -> Settings {
+    fs::read_to_string(settings_path())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub fn save(s: &Settings) {
+    if let Ok(json) = serde_json::to_string_pretty(s) {
+        let _ = fs::write(settings_path(), json);
+    }
+}
