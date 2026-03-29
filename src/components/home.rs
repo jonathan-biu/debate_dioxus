@@ -1,5 +1,5 @@
 use crate::{
-    components::navbar::Navbar,
+    components::{navbar::Navbar, icons::{IconChevronUp, IconChevronDown}},
     db,
     i18n::{t, Lang},
     settings::Settings,
@@ -126,6 +126,7 @@ fn home_inner(param_id: Option<String>) -> Element {
             }
 
             select {
+                class: "motion-select",
                 onchange: move |e| {
                     let v = e.value();
                     *selected_id.write() = if v.is_empty() { None } else { Some(v) };
@@ -450,7 +451,7 @@ fn PlacementView(
                                                     }
                                                 }
                                             },
-                                            "↑"
+                                            IconChevronUp {}
                                         }
                                         button {
                                             disabled: placement == 4,
@@ -475,7 +476,7 @@ fn PlacementView(
                                                     }
                                                 }
                                             },
-                                            "↓"
+                                            IconChevronDown {}
                                         }
                                     }
                                 }

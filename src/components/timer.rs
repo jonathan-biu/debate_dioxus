@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use std::time::Duration;
-use crate::{i18n::{t, Lang}, settings::Settings};
+use crate::{i18n::{t, Lang}, settings::Settings, components::icons::{IconBell, IconBellOff}};
 
 const BELL: Asset = asset!("/assets/bell.mp3");
 const NEGATIVE_LIMIT: i32 = -15;
@@ -78,7 +78,7 @@ pub fn Timer() -> Element {
             }
             button {
                 onclick: move |_| *silenced.write() ^= true,
-                if *silenced.read() { {t(&lang, "timer.unmute")} } else { {t(&lang, "timer.silence")} }
+                if *silenced.read() { IconBellOff {} } else { IconBell {} }
             }
         }
     }

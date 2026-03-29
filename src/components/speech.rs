@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use dioxus::document::eval;
 use std::collections::HashMap;
 use crate::{
     Route, db, i18n::{t, Lang}, settings::Settings,
@@ -9,6 +10,141 @@ use crate::{
 // (speech, rebuttal, poi)
 type Edits = HashMap<String, (String, String, String)>;
 
+// JS injected once to handle all textarea keyboard shortcuts:
+//   Ctrl+B  → wrap selection in '*'
+//   Ctrl+D  → wrap selection in '$'
+//   Tab     → indent list item (numbers→letters) / Shift+Tab dedent (letters→numbers)
+//             also blocks default tab-focus-navigation
+//   Enter   → continue list / sub-list, or exit on blank line
+//   Ctrl+↑  → focus previous textarea
+//   Ctrl+↓  → focus next textarea
+const KEYBOARD_JS: &str = r#"
+(function() {
+  if (window.__speechKeysInstalled) return;
+  window.__speechKeysInstalled = true;
+
+  const state = new WeakMap();
+  function getState(el) {
+    if (!state.has(el)) state.set(el, { counter: 0, subCounter: 0 });
+    return state.get(el);
+  }
+
+  function wrap(el, marker) {
+    const s = el.selectionStart, e = el.selectionEnd;
+    el.value = el.value.slice(0, s) + marker + el.value.slice(s, e) + marker + el.value.slice(e);
+    el.selectionStart = s + 1; el.selectionEnd = e + 1;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function insertAt(el, text, pos) {
+    el.value = el.value.slice(0, pos) + text + el.value.slice(pos);
+    el.selectionStart = el.selectionEnd = pos + text.length;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function replaceRange(el, text, s, e) {
+    el.value = el.value.slice(0, s) + text + el.value.slice(e);
+    el.selectionStart = el.selectionEnd = s + text.length;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function toLetter(n) { return String.fromCharCode(96 + n); }
+
+  // Detect list depth from indentation (each level = 4 spaces)
+  function getDepth(line) {
+    const m = line.match(/^( *)/);
+    return m ? Math.floor(m[1].length / 4) : 0;
+  }
+
+  // Build prefix for a given depth and counter
+  function makePrefix(depth, counter) {
+    const indent = '    '.repeat(depth);
+    return depth % 2 === 0
+      ? indent + counter + '. '           // even depth → numbers
+      : indent + toLetter(counter) + '. '; // odd depth  → letters
+  }
+
+  // Parse current line: returns { depth, counter, text } or null
+  function parseLine(line) {
+    const m = line.match(/^( *)(\d+|[a-z]+)\.\ ?(.*)$/);
+    if (!m) return null;
+    const depth = Math.floor(m[1].length / 4);
+    const raw = m[2];
+    const counter = /^\d+$/.test(raw) ? parseInt(raw) : raw.charCodeAt(0) - 96;
+    const spaceLen = m[0][m[1].length + m[2].length + 1] === ' ' ? 1 : 0;
+    return { depth, counter, text: m[3], prefixLen: m[1].length + m[2].length + 1 + spaceLen };
+  }
+
+  document.addEventListener('keydown', function(ev) {
+    const el = document.activeElement;
+    if (!el || el.tagName !== 'TEXTAREA') return;
+    const st = getState(el);
+    const ctrl = ev.ctrlKey || ev.metaKey;
+
+    // ── Ctrl+B / Ctrl+D ─────────────────────────────────────────────────────
+    if (ctrl && ev.key === 'b') { ev.preventDefault(); wrap(el, '*'); return; }
+    if (ctrl && ev.key === 'd') { ev.preventDefault(); wrap(el, '$'); return; }
+
+    // ── Tab : always prevent focus-change; indent/dedent if on a list line ──
+    if (ev.key === 'Tab') {
+      ev.preventDefault();
+      const pos = el.selectionStart;
+      const lineStart = el.value.lastIndexOf('\n', pos - 1) + 1;
+      const lineEnd = el.value.indexOf('\n', pos);
+      const line = el.value.slice(lineStart, lineEnd === -1 ? el.value.length : lineEnd);
+      const parsed = parseLine(line);
+      if (!parsed) { insertAt(el, '\t', pos); return; }
+
+      if (!ev.shiftKey) {
+        // indent: increase depth by 1, reset counter to 1
+        const newDepth = parsed.depth + 1;
+        replaceRange(el, makePrefix(newDepth, 1), lineStart, lineStart + parsed.prefixLen);
+      } else if (parsed.depth > 0) {
+        // dedent: decrease depth by 1, restore parent counter
+        const newDepth = parsed.depth - 1;
+        replaceRange(el, makePrefix(newDepth, st.counter), lineStart, lineStart + parsed.prefixLen);
+      }
+      return;
+    }
+
+    // ── Enter : continue / exit list ────────────────────────────────────────
+    if (ev.key === 'Enter') {
+      if (ev.shiftKey) return;
+      const pos = el.selectionStart;
+      const lineStart = el.value.lastIndexOf('\n', pos - 1) + 1;
+      const line = el.value.slice(lineStart, pos);
+      const parsed = parseLine(line);
+      if (!parsed) return;
+
+      ev.preventDefault();
+      if (parsed.text.trim() === '') {
+        // blank list line: dedent or exit
+        if (parsed.depth > 0) {
+          replaceRange(el, '\n' + makePrefix(parsed.depth - 1, st.counter), lineStart, pos);
+        } else {
+          st.counter = 0;
+          replaceRange(el, '\n', lineStart, pos);
+        }
+      } else {
+        const next = parsed.counter + 1;
+        st.counter = parsed.depth === 0 ? next : st.counter;
+        insertAt(el, '\n' + makePrefix(parsed.depth, next), pos);
+      }
+      return;
+    }
+
+    // ── Ctrl+↑ / Ctrl+↓ : navigate between textareas ───────────────────────
+    if (ctrl && (ev.key === 'ArrowUp' || ev.key === 'ArrowDown')) {
+      ev.preventDefault();
+      const all = Array.from(document.querySelectorAll('textarea'));
+      const idx = all.indexOf(el);
+      if (ev.key === 'ArrowUp'   && idx > 0)              all[idx - 1].focus();
+      if (ev.key === 'ArrowDown' && idx < all.length - 1) all[idx + 1].focus();
+    }
+  });
+})();
+"#;
+
 #[component]
 pub fn Speech(speaker: String, id: String) -> Element {
     let lang_ctx = use_context::<Lang>();
@@ -16,11 +152,11 @@ pub fn Speech(speaker: String, id: String) -> Element {
     let settings = use_context::<Signal<Settings>>();
     let nav = navigator();
 
-    // Single signal holding edits for ALL speakers — persists across speaker nav
-    // but is keyed so each speaker has independent text
     let mut edits: Signal<Edits> = use_signal(|| HashMap::new());
 
-    // Load from DB into edits map if not already present for this speaker
+    // Install keyboard handler once
+    use_effect(move || { eval(KEYBOARD_JS); });
+
     let sp_key = speaker.clone();
     let did_load = id.clone();
     use_effect(move || {
@@ -77,7 +213,7 @@ pub fn Speech(speaker: String, id: String) -> Element {
             form { onsubmit: handle_submit,
                 div {
                     label { {t(&lang, "speech.arguments")} }
-                    textarea { name: "speech", rows: "8", value: "{speech_val}",
+                    textarea { name: "speech", value: "{speech_val}",
                         oninput: move |e| {
                             let v = e.value();
                             if let Some(entry) = edits.write().get_mut(&sp3) { entry.0 = v; }
@@ -87,7 +223,7 @@ pub fn Speech(speaker: String, id: String) -> Element {
                 if !is_pm && inc_rebuttal {
                     div {
                         label { {t(&lang, "speech.rebuttal")} }
-                        textarea { name: "rebuttal", rows: "6", value: "{rebuttal_val}",
+                        textarea { name: "rebuttal", value: "{rebuttal_val}",
                             oninput: move |e| {
                                 let v = e.value();
                                 if let Some(entry) = edits.write().get_mut(&sp4) { entry.1 = v; }
@@ -98,7 +234,7 @@ pub fn Speech(speaker: String, id: String) -> Element {
                 if inc_poi {
                     div {
                         label { {t(&lang, "speech.poi")} }
-                        textarea { name: "poi", rows: "4", value: "{poi_val}",
+                        textarea { name: "poi", value: "{poi_val}",
                             oninput: move |e| {
                                 let v = e.value();
                                 if let Some(entry) = edits.write().get_mut(&sp5) { entry.2 = v; }

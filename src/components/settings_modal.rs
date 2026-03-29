@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use crate::{i18n::{t, Lang}, settings::{self, Settings}};
+use crate::{i18n::{t, Lang}, settings::{self, Settings}, components::icons::IconClose};
 
 #[component]
 pub fn SettingsModal() -> Element {
@@ -18,7 +18,7 @@ pub fn SettingsModal() -> Element {
             div { class: "settings-modal",
                 div { class: "settings-header",
                     h2 { {t(&lang, "settings.title")} }
-                    button { class: "settings-close", onclick: close, "×" }
+                    button { class: "settings-close", onclick: close, IconClose {} }
                 }
                 div { class: "settings-content",
                     // Language
@@ -45,14 +45,17 @@ pub fn SettingsModal() -> Element {
                     div { class: "settings-section",
                         h3 { {t(&lang, "settings.timer")} }
                         select {
-                            value: "{s.read().speech_timer_default}",
                             onchange: move |e| {
                                 if let Ok(v) = e.value().parse::<u32>() {
                                     s.write().speech_timer_default = v;
                                 }
                             },
                             for mins in [5u32, 6, 7, 8, 10] {
-                                option { value: "{mins}", "{mins} {t(&lang, \"settings.minutes\")}" }
+                                option {
+                                    value: "{mins}",
+                                    selected: s.read().speech_timer_default == mins,
+                                    "{mins} {t(&lang, \"settings.minutes\")}"
+                                }
                             }
                         }
                     }

@@ -7,5 +7,10 @@ identifier = "com.debate.judging-interface"
 publisher = "Debate"
 icon = ["assets/debate_logo.ico"]
 
+
+[bundle.windows]
+nsis = {}
+msi = {}
+
 [web.app]
 title = "Debate_judging_interface"

@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use crate::{Route, i18n::{t, Lang}};
+use crate::{Route, i18n::{t, Lang}, components::icons::IconSettings};
 
 #[component]
 pub fn Navbar(in_speech: bool, debate_id: Option<String>) -> Element {
@@ -36,7 +36,7 @@ pub fn Navbar(in_speech: bool, debate_id: Option<String>) -> Element {
                 button {
                     class: "settings-button",
                     onclick: move |_| *show_settings.write() = true,
-                    "⚙️"
+                    IconSettings {}
                 }
             }
         }
