@@ -8,8 +8,9 @@ pub fn SettingsModal() -> Element {
     let mut show = use_context::<Signal<bool>>();
     let mut s = use_context::<Signal<Settings>>();
 
+    let save = move || settings::save(&s.read());
+
     let close = move |_| {
-        settings::save(&s.read());
         *show.write() = false;
     };
 
@@ -26,7 +27,7 @@ pub fn SettingsModal() -> Element {
                         h3 { {t(&lang, "settings.language")} }
                         select {
                             value: "{s.read().language}",
-                            onchange: move |e| s.write().language = e.value(),
+                            onchange: move |e| { s.write().language = e.value(); save(); },
                             option { value: "en", "English" }
                             option { value: "he", "עברית" }
                         }
@@ -36,7 +37,7 @@ pub fn SettingsModal() -> Element {
                         h3 { {t(&lang, "settings.theme")} }
                         select {
                             value: "{s.read().theme}",
-                            onchange: move |e| s.write().theme = e.value(),
+                            onchange: move |e| { s.write().theme = e.value(); save(); },
                             option { value: "light", {t(&lang, "settings.light")} }
                             option { value: "dark",  {t(&lang, "settings.dark")} }
                         }
@@ -44,27 +45,26 @@ pub fn SettingsModal() -> Element {
                     // Timer
                     div { class: "settings-section",
                         h3 { {t(&lang, "settings.timer")} }
-                        select {
-                            onchange: move |e| {
+                        input {
+                            r#type: "number",
+                            min: "1",
+                            max: "60",
+                            value: "{s.read().speech_timer_default}",
+                            oninput: move |e| {
                                 if let Ok(v) = e.value().parse::<u32>() {
                                     s.write().speech_timer_default = v;
+                                    save();
                                 }
                             },
-                            for mins in [5u32, 6, 7, 8, 10] {
-                                option {
-                                    value: "{mins}",
-                                    selected: s.read().speech_timer_default == mins,
-                                    "{mins} {t(&lang, \"settings.minutes\")}"
-                                }
-                            }
                         }
+                        span { " {t(&lang, \"settings.minutes\")}" }
                     }
                     // Font size
                     div { class: "settings-section",
                         h3 { {t(&lang, "settings.font_size")} }
                         select {
                             value: "{s.read().font_size}",
-                            onchange: move |e| s.write().font_size = e.value(),
+                            onchange: move |e| { s.write().font_size = e.value(); save(); },
                             option { value: "small",       {t(&lang, "settings.small")} }
                             option { value: "medium",      {t(&lang, "settings.medium")} }
                             option { value: "large",       {t(&lang, "settings.large")} }
@@ -75,24 +75,29 @@ pub fn SettingsModal() -> Element {
                     div { class: "settings-section",
                         label { class: "settings-checkbox",
                             input { r#type: "checkbox", checked: s.read().enable_sound,
-                                onchange: move |e| s.write().enable_sound = e.checked() }
+                                onchange: move |e| { s.write().enable_sound = e.checked(); save(); } }
                             span { {t(&lang, "settings.sound")} }
                         }
                         label { class: "settings-checkbox",
                             input { r#type: "checkbox", checked: s.read().include_rebuttal,
-                                onchange: move |e| s.write().include_rebuttal = e.checked() }
+                                onchange: move |e| { s.write().include_rebuttal = e.checked(); save(); } }
                             span { {t(&lang, "settings.rebuttal")} }
                         }
                         label { class: "settings-checkbox",
                             input { r#type: "checkbox", checked: s.read().include_poi,
-                                onchange: move |e| s.write().include_poi = e.checked() }
+                                onchange: move |e| { s.write().include_poi = e.checked(); save(); } }
                             span { {t(&lang, "settings.poi")} }
+                        }
+                        label { class: "settings-checkbox",
+                            input { r#type: "checkbox", checked: s.read().always_on_top,
+                                onchange: move |e| { s.write().always_on_top = e.checked(); save(); } }
+                            span { {t(&lang, "settings.always_top")} }
                         }
                     }
                 }
                 div { class: "settings-footer",
                     button { class: "settings-reset",
-                        onclick: move |_| { *s.write() = Settings::default(); settings::save(&s.read()); },
+                        onclick: move |_| { *s.write() = Settings::default(); save(); },
                         {t(&lang, "settings.reset")}
                     }
                     button { class: "settings-save", onclick: close, {t(&lang, "settings.close")} }

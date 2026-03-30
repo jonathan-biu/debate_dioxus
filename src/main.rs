@@ -11,6 +11,7 @@ use components::{
     settings_modal::SettingsModal,
     speech::Speech,
 };
+use dioxus::desktop::use_window;
 use dioxus::prelude::*;
 use i18n::Lang;
 use settings::Settings;
@@ -81,6 +82,11 @@ fn App() -> Element {
              document.documentElement.setAttribute('data-font-size','{fs}');
              document.documentElement.dir='{dir}';"
         ));
+    });
+
+    let window = use_window();
+    use_effect(move || {
+        window.set_always_on_top(settings.read().always_on_top);
     });
 
     rsx! {

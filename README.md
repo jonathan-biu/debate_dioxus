@@ -7,8 +7,9 @@ A desktop application for managing and reviewing **British Parliamentary (BP)** 
 ## Features
 
 - **Create & manage debates** — store motions and all 8 speaker roles with their speeches
-- **Speech entry** — record arguments, rebuttals, and POIs per speaker, with a built-in countdown timer
-- **Timer** — configurable speech timer with audio bell cues (at 1 min elapsed, 1 min remaining, and time-up)
+- **Edit existing debates** — select any saved debate and jump back into the speech entry flow
+- **Speech entry** — record arguments, rebuttals, and POIs per speaker; navigating between speakers via the navbar loads existing data from the database
+- **Timer** — configurable speech timer (free numeric input) with audio bell cues (at 1 min elapsed, 1 min remaining, and time-up) and a per-session mute toggle
 - **Three review views:**
   - **Card View** — per-group speaker cards in a fixed 2×2 grid (OG/OO top, CG/CO bottom)
   - **Table View** — side-by-side comparison of all 8 speakers
@@ -24,7 +25,7 @@ A desktop application for managing and reviewing **British Parliamentary (BP)** 
 - **Auto ordered lists** — type `1. text` and press Enter to auto-continue; supports alternating depth levels (numbers → letters → numbers…)
 - **Internationalization** — English and Hebrew (with full RTL layout support)
 - **Theming** — light / dark themes, configurable font size
-- **Persistent settings** — language, theme, font size, timer duration, sound toggle, rebuttal/POI visibility
+- **Persistent settings** — saved immediately on change to `settings.toml`
 
 ---
 
@@ -47,7 +48,7 @@ A desktop application for managing and reviewing **British Parliamentary (BP)** 
 
 ```
 src/
-├── main.rs                   # App entry point, routing, theme/dir setup
+├── main.rs                   # App entry point, routing, theme/dir/always-on-top setup
 ├── types.rs                  # Debate & Speech structs, SPEAKER_ORDER
 ├── db.rs                     # SQLite CRUD (debates, speeches, speakers)
 ├── settings.rs               # Settings struct, load/save to settings.toml
@@ -79,14 +80,14 @@ src/
 
 ## Settings
 
-Settings are saved to `settings.toml` in `%LOCALAPPDATA%\debate_dioxus\` (same directory as the database).
+Settings are saved immediately on change to `settings.toml` in `%LOCALAPPDATA%\debate_dioxus\`.
 
 | Setting | Default | Description |
 |---|---|---|
 | `language` | `en` | UI language (`en` / `he`) |
 | `theme` | `light` | Color theme (`light` / `dark`) |
 | `font_size` | `medium` | Font size (`small` / `medium` / `large` / `extra-large`) |
-| `speech_timer_default` | `7` | Timer duration in minutes |
+| `speech_timer_default` | `7` | Timer duration in minutes (free numeric input, 1–60) |
 | `enable_sound` | `true` | Bell sound on timer events |
 | `include_rebuttal` | `true` | Show rebuttal section in views |
 | `include_poi` | `true` | Show POI section in views |

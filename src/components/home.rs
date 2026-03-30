@@ -4,6 +4,7 @@ use crate::{
     i18n::{t, Lang},
     settings::Settings,
     types::{Debate, SPEAKER_ORDER},
+    Route,
 };
 use dioxus::prelude::*;
 
@@ -99,6 +100,7 @@ fn home_inner(param_id: Option<String>) -> Element {
     let lang_ctx = use_context::<Lang>();
     let lang = lang_ctx.0.read().clone();
     let settings = use_context::<Signal<Settings>>();
+    let nav = navigator();
 
     let mut debates = use_signal(|| db::get_debates());
     let mut selected_id = use_signal(|| param_id);
@@ -148,6 +150,14 @@ fn home_inner(param_id: Option<String>) -> Element {
                         *selected_id.write() = None;
                     },
                     {t(&lang, "home.delete_motion")}
+                }
+                button {
+                    onclick: move |_| {
+                        if let Some(id) = selected_id.read().clone() {
+                            nav.push(Route::SpeechRoute { speaker: "PM".to_string(), id });
+                        }
+                    },
+                    {t(&lang, "home.edit_motion")}
                 }
             }
 

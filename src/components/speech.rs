@@ -1,14 +1,12 @@
 use dioxus::prelude::*;
 use dioxus::document::eval;
-use std::collections::HashMap;
 use crate::{
     Route, db, i18n::{t, Lang}, settings::Settings,
     types::SPEAKER_ORDER,
     components::{navbar::Navbar, timer::Timer},
 };
 
-// (speech, rebuttal, poi)
-type Edits = HashMap<String, (String, String, String)>;
+
 
 // JS injected once to handle all textarea keyboard shortcuts:
 //   Ctrl+B  → wrap selection in '*'
@@ -152,27 +150,36 @@ pub fn Speech(speaker: String, id: String) -> Element {
     let settings = use_context::<Signal<Settings>>();
     let nav = navigator();
 
-    let mut edits: Signal<Edits> = use_signal(|| HashMap::new());
+    let mut speech_val   = use_signal(String::new);
+    let mut rebuttal_val = use_signal(String::new);
+    let mut poi_val      = use_signal(String::new);
+
+    // Store props in signals so use_memo can track changes across re-renders
+    let mut speaker_sig = use_signal(|| speaker.clone());
+    let mut id_sig      = use_signal(|| id.clone());
+    *speaker_sig.write() = speaker.clone();
+    *id_sig.write()      = id.clone();
+
+    let loaded = use_memo(move || {
+        let sp = speaker_sig.read().clone();
+        let id = id_sig.read().clone();
+        db::get_debate(&id).map(|d| {
+            let s = d.get_speech(&sp);
+            (s.speech.clone(), s.rebuttal.clone(), s.poi.clone())
+        })
+    });
+    use_effect(move || {
+        if let Some((sp, rb, po)) = loaded() {
+            *speech_val.write()   = sp;
+            *rebuttal_val.write() = rb;
+            *poi_val.write()      = po;
+        }
+    });
 
     // Install keyboard handler once
     use_effect(move || { eval(KEYBOARD_JS); });
 
-    let sp_key = speaker.clone();
-    let did_load = id.clone();
-    use_effect(move || {
-        let key = sp_key.clone();
-        if !edits.read().contains_key(&key) {
-            if let Some(d) = db::get_debate(&did_load) {
-                let s = d.get_speech(&key);
-                edits.write().insert(key, (s.speech.clone(), s.rebuttal.clone(), s.poi.clone()));
-            }
-        }
-    });
-
-    let current = edits.read().get(&speaker).cloned().unwrap_or_default();
-    let (speech_val, rebuttal_val, poi_val) = current;
-
-    let initial = db::get_debate(&id);
+    let initial     = db::get_debate(&id);
     let init_name   = initial.as_ref().map(|d| d.get_speech(&speaker).speaker.clone()).unwrap_or_default();
     let init_motion = initial.as_ref().map(|d| d.motion.clone()).unwrap_or_default();
 
@@ -182,8 +189,7 @@ pub fn Speech(speaker: String, id: String) -> Element {
 
     let handle_submit = move |e: FormEvent| {
         e.prevent_default();
-        let (sp_val, rb_val, po_val) = edits.read().get(&sp2).cloned().unwrap_or_default();
-        db::save_speech(&did2, &sp2, &name2, &sp_val, &rb_val, &po_val);
+        db::save_speech(&did2, &sp2, &name2, &speech_val.read(), &rebuttal_val.read(), &poi_val.read());
 
         let idx = SPEAKER_ORDER.iter().position(|&r| r == sp2.as_str()).unwrap_or(0);
         if idx + 1 < SPEAKER_ORDER.len() {
@@ -198,9 +204,6 @@ pub fn Speech(speaker: String, id: String) -> Element {
     let is_pm        = speaker == "PM";
     let inc_rebuttal = settings.read().include_rebuttal;
     let inc_poi      = settings.read().include_poi;
-    let sp3 = speaker.clone();
-    let sp4 = speaker.clone();
-    let sp5 = speaker.clone();
 
     rsx! {
         Navbar { in_speech: true, debate_id: Some(id.clone()) }
@@ -214,20 +217,14 @@ pub fn Speech(speaker: String, id: String) -> Element {
                 div {
                     label { {t(&lang, "speech.arguments")} }
                     textarea { name: "speech", value: "{speech_val}",
-                        oninput: move |e| {
-                            let v = e.value();
-                            if let Some(entry) = edits.write().get_mut(&sp3) { entry.0 = v; }
-                        }
+                        oninput: move |e| *speech_val.write() = e.value()
                     }
                 }
                 if !is_pm && inc_rebuttal {
                     div {
                         label { {t(&lang, "speech.rebuttal")} }
                         textarea { name: "rebuttal", value: "{rebuttal_val}",
-                            oninput: move |e| {
-                                let v = e.value();
-                                if let Some(entry) = edits.write().get_mut(&sp4) { entry.1 = v; }
-                            }
+                            oninput: move |e| *rebuttal_val.write() = e.value()
                         }
                     }
                 }
@@ -235,10 +232,7 @@ pub fn Speech(speaker: String, id: String) -> Element {
                     div {
                         label { {t(&lang, "speech.poi")} }
                         textarea { name: "poi", value: "{poi_val}",
-                            oninput: move |e| {
-                                let v = e.value();
-                                if let Some(entry) = edits.write().get_mut(&sp5) { entry.2 = v; }
-                            }
+                            oninput: move |e| *poi_val.write() = e.value()
                         }
                     }
                 }
