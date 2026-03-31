@@ -11,11 +11,13 @@ pub struct Settings {
     pub include_rebuttal: bool,
     pub include_poi: bool,
     pub always_on_top: bool,
+    pub turso_url: String,
+    pub turso_token: String,
 }
 
 #[allow(dead_code)]
 pub const DEFAULT_SETTINGS: Settings = Settings {
-    language: String::new(),       // filled below
+    language: String::new(),
     theme: String::new(),
     speech_timer_default: 7,
     enable_sound: true,
@@ -23,6 +25,8 @@ pub const DEFAULT_SETTINGS: Settings = Settings {
     include_rebuttal: true,
     include_poi: true,
     always_on_top: false,
+    turso_url: String::new(),
+    turso_token: String::new(),
 };
 
 impl Default for Settings {
@@ -36,6 +40,8 @@ impl Default for Settings {
             include_rebuttal: true,
             include_poi: true,
             always_on_top: false,
+            turso_url: String::new(),
+            turso_token: String::new(),
         }
     }
 }

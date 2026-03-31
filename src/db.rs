@@ -57,6 +57,18 @@ pub fn create_debate(id: &str, motion: &str) {
     });
 }
 
+pub fn upsert_debate(id: &str, motion: &str) {
+    with_db(|conn| {
+        conn.execute("INSERT OR REPLACE INTO debates (id, motion) VALUES (?1, ?2)", params![id, motion]).unwrap();
+        for role in ["PM","LO","DPM","DLO","MG","MO","GW","OW"] {
+            conn.execute(
+                "INSERT OR IGNORE INTO speeches (debate_id, role) VALUES (?1, ?2)",
+                params![id, role]
+            ).unwrap();
+        }
+    });
+}
+
 pub fn delete_debate(id: &str) {
     with_db(|conn| {
         conn.execute("DELETE FROM debates WHERE id=?1", params![id]).unwrap();

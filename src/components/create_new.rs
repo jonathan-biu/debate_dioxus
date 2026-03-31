@@ -1,5 +1,6 @@
 use dioxus::prelude::*;
 use crate::{Route, db, i18n::{t, Lang}, components::navbar::Navbar};
+use uuid::Uuid;
 
 #[component]
 pub fn CreateNew() -> Element {
@@ -21,8 +22,7 @@ pub fn CreateNew() -> Element {
                         *error.write() = "Motion cannot be empty".into();
                         return;
                     }
-                    let id = format!("{}", std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+                    let id = Uuid::new_v4().to_string();
                     db::create_debate(&id, &m);
                     nav.push(Route::SpeakersRoute { id });
                 },

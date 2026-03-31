@@ -2,6 +2,7 @@ mod components;
 mod db;
 mod i18n;
 mod settings;
+mod sync;
 mod types;
 
 use components::{
