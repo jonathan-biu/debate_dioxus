@@ -107,6 +107,13 @@ fn home_inner(param_id: Option<String>) -> Element {
     let mut view_mode = use_signal(|| ViewMode::Cards);
     let mut placements = use_signal(|| default_placements());
 
+    let sync_version = use_context::<Signal<u32>>();
+    use_effect(move || {
+        let _ = sync_version.read();
+        *debates.write() = db::get_debates();
+        *selected_id.write() = None;
+    });
+
     let debate = use_memo(move || {
         selected_id
             .read()
@@ -129,6 +136,7 @@ fn home_inner(param_id: Option<String>) -> Element {
 
             select {
                 class: "motion-select",
+                value: selected_id.read().clone().unwrap_or_default(),
                 onchange: move |e| {
                     let v = e.value();
                     *selected_id.write() = if v.is_empty() { None } else { Some(v) };
@@ -151,6 +159,7 @@ fn home_inner(param_id: Option<String>) -> Element {
                     },
                     {t(&lang, "home.delete_motion")}
                 }
+                span { style: "display:inline-block;width:8px;" }
                 button {
                     onclick: move |_| {
                         if let Some(id) = selected_id.read().clone() {

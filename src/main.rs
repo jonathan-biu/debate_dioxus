@@ -67,10 +67,12 @@ fn load_app_icon() -> Option<dioxus::desktop::tao::window::Icon> {
 fn App() -> Element {
     let settings: Signal<Settings> = use_signal(|| settings::load());
     let show_settings: Signal<bool> = use_signal(|| false);
+    let sync_version: Signal<u32> = use_signal(|| 0);
     let lang: Memo<String> = use_memo(move || settings.read().language.clone());
 
     provide_context(settings);
     provide_context(show_settings);
+    provide_context(sync_version);
     provide_context(Lang(lang));
 
     use_effect(move || {

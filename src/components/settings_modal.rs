@@ -7,6 +7,7 @@ pub fn SettingsModal() -> Element {
     let lang = lang_ctx.0.read().clone();
     let mut show = use_context::<Signal<bool>>();
     let mut s = use_context::<Signal<Settings>>();
+    let mut sync_version = use_context::<Signal<u32>>();
     let mut sync_status: Signal<Option<Result<(), String>>> = use_signal(|| None);
 
     let save = move || settings::save(&s.read());
@@ -35,8 +36,11 @@ pub fn SettingsModal() -> Element {
                         select {
                             value: "{s.read().theme}",
                             onchange: move |e| { s.write().theme = e.value(); save(); },
-                            option { value: "light", {t(&lang, "settings.light")} }
-                            option { value: "dark",  {t(&lang, "settings.dark")} }
+                            option { value: "light",  {t(&lang, "settings.light")} }
+                            option { value: "dark",   {t(&lang, "settings.dark")} }
+                            option { value: "sepia",  {t(&lang, "settings.sepia")} }
+                            option { value: "ocean",  {t(&lang, "settings.ocean")} }
+                            option { value: "forest", {t(&lang, "settings.forest")} }
                         }
                     }
                     div { class: "settings-section",
@@ -98,7 +102,7 @@ pub fn SettingsModal() -> Element {
                             value: "{s.read().turso_token}",
                             oninput: move |e| { s.write().turso_token = e.value(); save(); },
                         }
-                        div { class: "sync-buttons",
+                        div { class: "sync-buttons", style: "display:flex;gap:8px;",
                             button {
                                 disabled: s.read().turso_url.is_empty() || s.read().turso_token.is_empty(),
                                 onclick: move |_| {
@@ -106,7 +110,9 @@ pub fn SettingsModal() -> Element {
                                     let token = s.read().turso_token.clone();
                                     *sync_status.write() = None;
                                     spawn(async move {
-                                        *sync_status.write() = Some(sync::push(&url, &token).await);
+                                        let res = sync::push(&url, &token).await;
+                                        if res.is_ok() { *sync_version.write() += 1; }
+                                        *sync_status.write() = Some(res);
                                     });
                                 },
                                 {t(&lang, "settings.sync_push")}
@@ -118,7 +124,9 @@ pub fn SettingsModal() -> Element {
                                     let token = s.read().turso_token.clone();
                                     *sync_status.write() = None;
                                     spawn(async move {
-                                        *sync_status.write() = Some(sync::pull(&url, &token).await);
+                                        let res = sync::pull(&url, &token).await;
+                                        if res.is_ok() { *sync_version.write() += 1; }
+                                        *sync_status.write() = Some(res);
                                     });
                                 },
                                 {t(&lang, "settings.sync_pull")}
