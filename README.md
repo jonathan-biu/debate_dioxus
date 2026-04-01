@@ -6,8 +6,9 @@ A desktop application for managing and reviewing **British Parliamentary (BP)** 
 
 ## Features
 
-- **Create & manage debates** — store motions and all 8 speaker roles with their speeches
-- **Edit existing debates** — select any saved debate and jump back into the speech entry flow
+- **Create & manage debates** — store motions, an optional info slide, and all 8 speaker roles with their speeches
+- **Edit existing debates** — select any saved debate and jump back into the speech entry flow; after the final speaker the app auto-opens the review view
+- **Info slide** — attach an optional info slide to a motion; click the "Info Slide" button to open it in a separate themed popup window
 - **Speech entry** — record arguments, rebuttals, and POIs per speaker; navigating between speakers via the navbar loads existing data from the database
 - **Timer** — configurable speech timer (free numeric input) with audio bell cues (at 1 min elapsed, 1 min remaining, and time-up) and a per-session mute toggle
 - **Three review views:**
