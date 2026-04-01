@@ -14,8 +14,9 @@ pub fn init() {
     let conn = Connection::open(&db_path).expect("open db");
     conn.execute_batch("
         CREATE TABLE IF NOT EXISTS debates (
-            id      TEXT PRIMARY KEY,
-            motion  TEXT NOT NULL
+            id        TEXT PRIMARY KEY,
+            motion    TEXT NOT NULL,
+            infoslide TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS speeches (
             debate_id TEXT NOT NULL,
@@ -28,6 +29,10 @@ pub fn init() {
             FOREIGN KEY (debate_id) REFERENCES debates(id) ON DELETE CASCADE
         );
     ").expect("init schema");
+    // migrate existing DBs that lack the infoslide column
+    conn.execute_batch(
+        "ALTER TABLE debates ADD COLUMN infoslide TEXT NOT NULL DEFAULT '';"
+    ).ok();
     DB.set(Mutex::new(conn)).ok();
 }
 
@@ -45,9 +50,9 @@ pub fn get_debates() -> Vec<(String, String)> {
     })
 }
 
-pub fn create_debate(id: &str, motion: &str) {
+pub fn create_debate(id: &str, motion: &str, infoslide: &str) {
     with_db(|conn| {
-        conn.execute("INSERT INTO debates (id, motion) VALUES (?1, ?2)", params![id, motion]).unwrap();
+        conn.execute("INSERT INTO debates (id, motion, infoslide) VALUES (?1, ?2, ?3)", params![id, motion, infoslide]).unwrap();
         for role in ["PM","LO","DPM","DLO","MG","MO","GW","OW"] {
             conn.execute(
                 "INSERT INTO speeches (debate_id, role) VALUES (?1, ?2)",
@@ -57,9 +62,9 @@ pub fn create_debate(id: &str, motion: &str) {
     });
 }
 
-pub fn upsert_debate(id: &str, motion: &str) {
+pub fn upsert_debate(id: &str, motion: &str, infoslide: &str) {
     with_db(|conn| {
-        conn.execute("INSERT OR REPLACE INTO debates (id, motion) VALUES (?1, ?2)", params![id, motion]).unwrap();
+        conn.execute("INSERT OR REPLACE INTO debates (id, motion, infoslide) VALUES (?1, ?2, ?3)", params![id, motion, infoslide]).unwrap();
         for role in ["PM","LO","DPM","DLO","MG","MO","GW","OW"] {
             conn.execute(
                 "INSERT OR IGNORE INTO speeches (debate_id, role) VALUES (?1, ?2)",
@@ -77,8 +82,8 @@ pub fn delete_debate(id: &str) {
 
 pub fn get_debate(id: &str) -> Option<Debate> {
     with_db(|conn| {
-        let motion: String = conn.query_row(
-            "SELECT motion FROM debates WHERE id=?1", params![id], |r| r.get(0)
+        let (motion, infoslide): (String, String) = conn.query_row(
+            "SELECT motion, infoslide FROM debates WHERE id=?1", params![id], |r| Ok((r.get(0)?, r.get(1)?))
         ).ok()?;
 
         let mut stmt = conn.prepare(
@@ -88,6 +93,7 @@ pub fn get_debate(id: &str) -> Option<Debate> {
         let mut debate = Debate {
             id: id.to_string(),
             motion,
+            infoslide,
             ..Default::default()
         };
 
@@ -116,6 +122,12 @@ pub fn get_debate(id: &str) -> Option<Debate> {
 
         Some(debate)
     })
+}
+
+pub fn save_infoslide(id: &str, infoslide: &str) {
+    with_db(|conn| {
+        conn.execute("UPDATE debates SET infoslide=?1 WHERE id=?2", params![infoslide, id]).unwrap();
+    });
 }
 
 pub fn save_speech(debate_id: &str, role: &str, speaker: &str, speech: &str, rebuttal: &str, poi: &str) {

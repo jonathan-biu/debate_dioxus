@@ -65,13 +65,14 @@ pub async fn pull(url: &str, token: &str) -> Result<(), String> {
     let url = url.as_str();
     let client = Client::new();
 
-    let debates_res = exec_sql(&client, url, token, "SELECT id, motion FROM debates", vec![]).await?;
+    let debates_res = exec_sql(&client, url, token, "SELECT id, motion, infoslide FROM debates", vec![]).await?;
     let rows = debates_res["rows"].as_array().cloned().unwrap_or_default();
 
     for row in rows {
-        let id     = row[0]["value"].as_str().unwrap_or("").to_string();
-        let motion = row[1]["value"].as_str().unwrap_or("").to_string();
-        db::upsert_debate(&id, &motion);
+        let id        = row[0]["value"].as_str().unwrap_or("").to_string();
+        let motion    = row[1]["value"].as_str().unwrap_or("").to_string();
+        let infoslide = row[2]["value"].as_str().unwrap_or("").to_string();
+        db::upsert_debate(&id, &motion, &infoslide);
 
         let speeches_res = exec_sql(&client, url, token,
             "SELECT role, speaker, speech, rebuttal, poi FROM speeches WHERE debate_id = ?",

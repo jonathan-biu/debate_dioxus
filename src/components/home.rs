@@ -7,6 +7,7 @@ use crate::{
     Route,
 };
 use dioxus::prelude::*;
+use dioxus::desktop::{use_window, Config, WindowBuilder};
 
 #[derive(Clone, PartialEq)]
 enum ViewMode {
@@ -106,12 +107,17 @@ fn home_inner(param_id: Option<String>) -> Element {
     let mut selected_id = use_signal(|| param_id);
     let mut view_mode = use_signal(|| ViewMode::Cards);
     let mut placements = use_signal(|| default_placements());
+    let desktop = use_window();
 
     let sync_version = use_context::<Signal<u32>>();
+    let mut last_sync = use_signal(|| 0u32);
     use_effect(move || {
-        let _ = sync_version.read();
+        let v = *sync_version.read();
         *debates.write() = db::get_debates();
-        *selected_id.write() = None;
+        if v != *last_sync.read() {
+            *last_sync.write() = v;
+            *selected_id.write() = None;
+        }
     });
 
     let debate = use_memo(move || {
@@ -131,6 +137,28 @@ fn home_inner(param_id: Option<String>) -> Element {
                         .as_ref()
                         .map(|d| d.motion.clone())
                         .unwrap_or_else(|| t(&lang, "home.select_motion").to_string())
+                }
+                if debate.read().as_ref().map(|d| !d.infoslide.is_empty()).unwrap_or(false) {
+                    button {
+                        class: "infoslide-btn",
+                        onclick: move |_| {
+                            if let Some(d) = debate.read().as_ref() {
+                                let text = d.infoslide.clone();
+                                let s = settings.read();
+                                let theme = s.theme.clone();
+                                let font_size = s.font_size.clone();
+                                desktop.new_window(
+                                    VirtualDom::new_with_props(InfoslideWindow, InfoslideWindowProps { text, theme, font_size }),
+                                    Config::new().with_window(
+                                        WindowBuilder::new()
+                                            .with_title("Info Slide")
+                                            .with_inner_size(dioxus::desktop::tao::dpi::LogicalSize::new(600.0, 400.0))
+                                    ),
+                                );
+                            }
+                        },
+                        {t(&lang, "home.infoslide")}
+                    }
                 }
             }
 
@@ -504,6 +532,27 @@ fn PlacementView(
                     }
                 }
             }
+        }
+    }
+}
+
+// ── Infoslide popup window ────────────────────────────────────────────────────
+
+const MAIN_CSS: Asset = asset!("/assets/main.css");
+
+#[component]
+fn InfoslideWindow(text: String, theme: String, font_size: String) -> Element {
+    let html = format_text(&text);
+    use_effect(move || {
+        let _ = document::eval(&format!(
+            "document.documentElement.setAttribute('data-theme','{theme}');
+             document.documentElement.setAttribute('data-font-size','{font_size}');"
+        ));
+    });
+    rsx! {
+        document::Link { rel: "stylesheet", href: MAIN_CSS }
+        div { class: "page",
+            p { dangerous_inner_html: "{html}" }
         }
     }
 }

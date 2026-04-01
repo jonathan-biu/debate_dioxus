@@ -7,6 +7,7 @@ pub fn CreateNew() -> Element {
     let lang_ctx = use_context::<Lang>();
     let lang = lang_ctx.0.read().clone();
     let mut motion = use_signal(|| String::new());
+    let mut infoslide = use_signal(|| String::new());
     let mut error  = use_signal(|| String::new());
     let nav = navigator();
 
@@ -23,7 +24,8 @@ pub fn CreateNew() -> Element {
                         return;
                     }
                     let id = Uuid::new_v4().to_string();
-                    db::create_debate(&id, &m);
+                    let info = infoslide.read().trim().to_string();
+                    db::create_debate(&id, &m, &info);
                     nav.push(Route::SpeakersRoute { id });
                 },
                 input {
@@ -31,6 +33,12 @@ pub fn CreateNew() -> Element {
                     value: "{motion}",
                     placeholder: t(&lang, "create.placeholder"),
                     oninput: move |e| *motion.write() = e.value(),
+                }
+                textarea {
+                    value: "{infoslide}",
+                    placeholder: t(&lang, "create.infoslide_placeholder"),
+                    rows: "4",
+                    oninput: move |e| *infoslide.write() = e.value(),
                 }
                 button { r#type: "submit", {t(&lang, "create.start")} }
             }

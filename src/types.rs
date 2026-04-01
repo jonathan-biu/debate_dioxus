@@ -10,6 +10,7 @@ pub struct Speech {
 pub struct Debate {
     pub id: String,
     pub motion: String,
+    pub infoslide: String,
     pub pm:  Speech,
     pub lo:  Speech,
     pub dpm: Speech,
