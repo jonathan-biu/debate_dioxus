@@ -229,13 +229,57 @@
     flex-wrap: wrap;
   }
 
-  .motion-select {
+  .motion-select-wrapper {
+    position: relative;
     width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     margin-block-end: 1.25rem;
   }
+
+  .motion-trigger {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.45em 0.75em;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    cursor: pointer;
+    user-select: none;
+    gap: 0.5em;
+  }
+  .motion-trigger:hover { background: var(--bg-secondary); }
+  .motion-trigger span:first-child {
+    white-space: normal;
+    word-break: break-word;
+    flex: 1;
+  }
+  .motion-trigger-arrow { flex-shrink: 0; transition: transform var(--transition); }
+  .motion-trigger.open .motion-trigger-arrow { transform: rotate(180deg); }
+
+  .motion-list {
+    position: absolute;
+    inset-inline: 0;
+    top: 100%;
+    z-index: 100;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    box-shadow: var(--shadow-md);
+  }
+
+  .motion-list-item {
+    padding: 0.45em 0.75em;
+    cursor: pointer;
+    white-space: normal;
+    word-break: break-word;
+    border-block-end: 1px solid var(--border-color);
+    transition: background var(--transition);
+  }
+  .motion-list-item:last-child { border-block-end: none; }
+  .motion-list-item:hover { background: var(--bg-secondary); }
+  .motion-list-item.selected { background: color-mix(in oklch, var(--accent) 15%, var(--bg-primary)); font-weight: 600; }
 
   .view-toggle-button {
     padding: 0.4em 1.1em;

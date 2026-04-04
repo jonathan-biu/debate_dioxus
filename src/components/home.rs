@@ -107,6 +107,7 @@ fn home_inner(param_id: Option<String>) -> Element {
     let mut selected_id = use_signal(|| param_id);
     let mut view_mode = use_signal(|| ViewMode::Cards);
     let mut placements = use_signal(|| default_placements());
+    let mut dropdown_open = use_signal(|| false);
     let desktop = use_window();
 
     let sync_version = use_context::<Signal<u32>>();
@@ -162,17 +163,37 @@ fn home_inner(param_id: Option<String>) -> Element {
                 }
             }
 
-            select {
-                class: "motion-select",
-                value: selected_id.read().clone().unwrap_or_default(),
-                onchange: move |e| {
-                    let v = e.value();
-                    *selected_id.write() = if v.is_empty() { None } else { Some(v) };
-                    *placements.write() = default_placements();
-                },
-                option { value: "", disabled: true, {t(&lang, "home.select_motion")} }
-                for (id , motion) in debates.read().iter() {
-                    option { value: "{id}", "{motion}" }
+            div { class: "motion-select-wrapper",
+                div {
+                    class: if *dropdown_open.read() { "motion-trigger open" } else { "motion-trigger" },
+                    onclick: move |_| { let v = *dropdown_open.read(); *dropdown_open.write() = !v; },
+                    span {
+                        {
+                            debates.read().iter()
+                                .find(|(id, _)| selected_id.read().as_deref() == Some(id.as_str()))
+                                .map(|(_, m)| m.clone())
+                                .unwrap_or_else(|| t(&lang, "home.select_motion").to_string())
+                        }
+                    }
+                    span { class: "motion-trigger-arrow", "▾" }
+                }
+                if *dropdown_open.read() {
+                    div { class: "motion-list",
+                        for (id , motion) in debates.read().iter() {
+                            div {
+                                class: if selected_id.read().as_deref() == Some(id.as_str()) { "motion-list-item selected" } else { "motion-list-item" },
+                                onclick: {
+                                    let id = id.clone();
+                                    move |_| {
+                                        *selected_id.write() = Some(id.clone());
+                                        *placements.write() = default_placements();
+                                        *dropdown_open.write() = false;
+                                    }
+                                },
+                                "{motion}"
+                            }
+                        }
+                    }
                 }
             }
 
