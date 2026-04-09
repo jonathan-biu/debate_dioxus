@@ -27,23 +27,31 @@ const KEYBOARD_JS: &str = r#"
     return state.get(el);
   }
 
+  // Use native setter so React/framework input handlers fire correctly
+  const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+
+  function triggerInput(el) {
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
   function wrap(el, marker) {
     const s = el.selectionStart, e = el.selectionEnd;
-    el.value = el.value.slice(0, s) + marker + el.value.slice(s, e) + marker + el.value.slice(e);
+    const newVal = el.value.slice(0, s) + marker + el.value.slice(s, e) + marker + el.value.slice(e);
+    nativeSetter.call(el, newVal);
     el.selectionStart = s + 1; el.selectionEnd = e + 1;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
+    triggerInput(el);
   }
 
   function insertAt(el, text, pos) {
-    el.value = el.value.slice(0, pos) + text + el.value.slice(pos);
+    nativeSetter.call(el, el.value.slice(0, pos) + text + el.value.slice(pos));
     el.selectionStart = el.selectionEnd = pos + text.length;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
+    triggerInput(el);
   }
 
   function replaceRange(el, text, s, e) {
-    el.value = el.value.slice(0, s) + text + el.value.slice(e);
+    nativeSetter.call(el, el.value.slice(0, s) + text + el.value.slice(e));
     el.selectionStart = el.selectionEnd = s + text.length;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
+    triggerInput(el);
   }
 
   function toLetter(n) { return String.fromCharCode(96 + n); }
@@ -80,8 +88,8 @@ const KEYBOARD_JS: &str = r#"
     const ctrl = ev.ctrlKey || ev.metaKey;
 
     // ── Ctrl+B / Ctrl+D ─────────────────────────────────────────────────────
-    if (ctrl && ev.key === 'b') { ev.preventDefault(); wrap(el, '*'); return; }
-    if (ctrl && ev.key === 'd') { ev.preventDefault(); wrap(el, '$'); return; }
+    if (ctrl && ev.code === 'KeyB') { ev.preventDefault(); wrap(el, '*'); return; }
+    if (ctrl && ev.code === 'KeyD') { ev.preventDefault(); wrap(el, '$'); return; }
 
     // ── Tab : always prevent focus-change; indent/dedent if on a list line ──
     if (ev.key === 'Tab') {
@@ -98,9 +106,17 @@ const KEYBOARD_JS: &str = r#"
         const newDepth = parsed.depth + 1;
         replaceRange(el, makePrefix(newDepth, 1), lineStart, lineStart + parsed.prefixLen);
       } else if (parsed.depth > 0) {
-        // dedent: decrease depth by 1, restore parent counter
+        // dedent: decrease depth by 1, find parent counter from previous lines
         const newDepth = parsed.depth - 1;
-        replaceRange(el, makePrefix(newDepth, st.counter), lineStart, lineStart + parsed.prefixLen);
+        // scan backwards to find the last line at newDepth to get its counter
+        const textBefore = el.value.slice(0, lineStart);
+        const prevLines = textBefore.split('\n');
+        let parentCounter = 1;
+        for (let i = prevLines.length - 1; i >= 0; i--) {
+          const p = parseLine(prevLines[i]);
+          if (p && p.depth === newDepth) { parentCounter = p.counter + 1; break; }
+        }
+        replaceRange(el, makePrefix(newDepth, parentCounter), lineStart, lineStart + parsed.prefixLen);
       }
       return;
     }
@@ -157,9 +173,12 @@ pub fn Speech(speaker: String, id: String) -> Element {
     // Store props in signals so use_memo can track changes across re-renders
     let mut speaker_sig = use_signal(|| speaker.clone());
     let mut id_sig      = use_signal(|| id.clone());
-    *speaker_sig.write() = speaker.clone();
-    *id_sig.write()      = id.clone();
+    if *speaker_sig.read() != speaker || *id_sig.read() != id {
+        *speaker_sig.write() = speaker.clone();
+        *id_sig.write()      = id.clone();
+    }
 
+    // Memo returns DB data keyed by (speaker, id) — does NOT track editable signals
     let loaded = use_memo(move || {
         let sp = speaker_sig.read().clone();
         let id = id_sig.read().clone();
@@ -168,12 +187,24 @@ pub fn Speech(speaker: String, id: String) -> Element {
             (s.speech.clone(), s.rebuttal.clone(), s.poi.clone())
         })
     });
+
+    // When loaded data changes (new speaker), update signals AND push to textareas via JS
     use_effect(move || {
-        if let Some((sp, rb, po)) = loaded() {
-            *speech_val.write()   = sp;
-            *rebuttal_val.write() = rb;
-            *poi_val.write()      = po;
-        }
+        let (sp, rb, po) = loaded().unwrap_or_default();
+        *speech_val.write()   = sp.clone();
+        *rebuttal_val.write() = rb.clone();
+        *poi_val.write()      = po.clone();
+        let js = format!(
+            r#"(function(){{
+              var s=document.getElementById('ta-speech');
+              var r=document.getElementById('ta-rebuttal');
+              var p=document.getElementById('ta-poi');
+              if(s)s.value={sp:?};
+              if(r)r.value={rb:?};
+              if(p)p.value={po:?};
+            }})();"#
+        );
+        eval(&js);
     });
 
     // Install keyboard handler once
@@ -216,14 +247,14 @@ pub fn Speech(speaker: String, id: String) -> Element {
             form { onsubmit: handle_submit,
                 div {
                     label { {t(&lang, "speech.arguments")} }
-                    textarea { name: "speech", value: "{speech_val}",
+                    textarea { id: "ta-speech", name: "speech",
                         oninput: move |e| *speech_val.write() = e.value()
                     }
                 }
                 if !is_pm && inc_rebuttal {
                     div {
                         label { {t(&lang, "speech.rebuttal")} }
-                        textarea { name: "rebuttal", value: "{rebuttal_val}",
+                        textarea { id: "ta-rebuttal", name: "rebuttal",
                             oninput: move |e| *rebuttal_val.write() = e.value()
                         }
                     }
@@ -231,7 +262,7 @@ pub fn Speech(speaker: String, id: String) -> Element {
                 if inc_poi {
                     div {
                         label { {t(&lang, "speech.poi")} }
-                        textarea { name: "poi", value: "{poi_val}",
+                        textarea { id: "ta-poi", name: "poi",
                             oninput: move |e| *poi_val.write() = e.value()
                         }
                     }

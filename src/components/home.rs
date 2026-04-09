@@ -65,23 +65,27 @@ fn placement_color(p: usize) -> &'static str {
 fn format_text(s: &str) -> String {
     let mut out = String::new();
     let mut chars = s.chars().peekable();
+    let mut line_start = true;
     while let Some(c) = chars.next() {
         match c {
             '*' => {
+                line_start = false;
                 let inner: String = chars.by_ref().take_while(|&x| x != '*').collect();
                 out.push_str(&format!(
                     "<strong style=\"color: var(--highlight-red, red);\">{inner}</strong>"
                 ));
             }
             '$' => {
+                line_start = false;
                 let inner: String = chars.by_ref().take_while(|&x| x != '$').collect();
                 out.push_str(&format!(
                     "<strong style=\"color: var(--highlight-blue, blue);\">{inner}</strong>"
                 ));
             }
-            '\n' => out.push_str("<br>"),
+            '\n' => { out.push_str("<br>"); line_start = true; }
             '\t' => out.push_str("&nbsp;&nbsp;&nbsp;&nbsp;"),
-            _ => out.push(c),
+            ' ' if line_start => out.push_str("&nbsp;"),
+            _ => { line_start = false; out.push(c); }
         }
     }
     out
