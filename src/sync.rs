@@ -32,7 +32,7 @@ pub async fn push(url: &str, token: &str) -> Result<(), String> {
 
     // Ensure schema
     for sql in [
-        "CREATE TABLE IF NOT EXISTS debates (id TEXT PRIMARY KEY, motion TEXT NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS debates (id TEXT PRIMARY KEY, motion TEXT NOT NULL, infoslide TEXT NOT NULL DEFAULT '')",
         "CREATE TABLE IF NOT EXISTS speeches (debate_id TEXT NOT NULL, role TEXT NOT NULL, \
          speaker TEXT NOT NULL DEFAULT '', speech TEXT NOT NULL DEFAULT '', \
          rebuttal TEXT NOT NULL DEFAULT '', poi TEXT NOT NULL DEFAULT '', \
@@ -40,11 +40,15 @@ pub async fn push(url: &str, token: &str) -> Result<(), String> {
     ] {
         exec_sql(&client, url, token, sql, vec![]).await?;
     }
+    // Migrate remote schema if infoslide column is missing
+    exec_sql(&client, url, token,
+        "ALTER TABLE debates ADD COLUMN infoslide TEXT NOT NULL DEFAULT ''", vec![]).await.ok();
 
     for (id, motion) in db::get_debates() {
+        let infoslide = db::get_debate(&id).map(|d| d.infoslide.clone()).unwrap_or_default();
         exec_sql(&client, url, token,
-            "INSERT OR REPLACE INTO debates (id, motion) VALUES (?, ?)",
-            vec![json!(id), json!(motion)]).await?;
+            "INSERT OR REPLACE INTO debates (id, motion, infoslide) VALUES (?, ?, ?)",
+            vec![json!(id), json!(motion), json!(infoslide)]).await?;
 
         if let Some(debate) = db::get_debate(&id) {
             for role in ["PM","LO","DPM","DLO","MG","MO","GW","OW"] {
